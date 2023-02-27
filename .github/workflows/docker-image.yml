@@ -1,0 +1,47 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - id: 'auth'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.SERVICE_ACCOUNT_KEY }}'
+
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v1'
+
+      - name: 'Use gcloud CLI'
+        run: 'gcloud info'
+
+      - name: Build Docker image
+        working-directory: ./web
+        run: |
+          docker build -t gcr.io/${{ vars.PROJECT_ID }}/the-movi-web:$GITHUB_SHA .
+
+      - name: Configure Gcloud Docker
+        run: |
+          gcloud auth configure-docker gcr.io --quiet
+
+      - name: Push Docker image to Google Cloud Registry
+        run: |
+          docker push gcr.io/${{ vars.PROJECT_ID }}/the-movi-web:$GITHUB_SHA
+
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy the-movi-web-service \
+            --image gcr.io/${{ vars.PROJECT_ID }}/the-movi-web:$GITHUB_SHA \
+            --platform managed \
+            --region us-central1 \
+            --allow-unauthenticated
